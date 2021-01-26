@@ -6,52 +6,20 @@ License: MIT
 '''
 
 import sys
-
-from pdfminer.pdfparser import PDFParser
-from pdfminer.pdfdocument import PDFDocument
-from pdfminer.pdfpage import PDFPage
-from pdfminer.pdfinterp import PDFResourceManager
-from pdfminer.pdfinterp import PDFPageInterpreter
-from pdfminer.converter import PDFPageAggregator
-from pdfminer.layout import LTFigure, LTImage
-
+from pdf2image import convert_from_path, convert_from_bytes
+import io
 
 def extract_first_jpeg_in_pdf(fstream):
     """
-    Reads a given PDF file and scans for the first valid embedded JPEG image.
-    Returns either None (if none found) or a string of data for the image.
-    There is no 100% guarantee for this code, yet it seems to work fine with most
-    scanner-produced images around.
-    More testing might be needed though.
-
-    Note that in principle there is no serious problem extracting PNGs or other image types from PDFs,
-    however at the moment I do not have enough test data to try this, and the one I have seems to be unsuitable
-    for PDFMiner.
-
-    :param fstream: Readable binary stream of the PDF
-    :return: binary stream, containing the whole contents of the JPEG image or None if extraction failed.
+    Convert the first page of the PDF to JPG for further processing.
+    I'm testing this as opposed to the PDFMiner way in the original PassportEye as I found it unreliable
+    This works ok so far, of course only on one page of the PDF
+    If I understood byte streams properly this would be for sure nicer
+    
+    by mir 2020-01-26
     """
-    parser = PDFParser(fstream)
-    document = PDFDocument(parser)
-    rsrcmgr = PDFResourceManager()
-    device = PDFPageAggregator(rsrcmgr)
-    interpreter = PDFPageInterpreter(rsrcmgr, device)
-    pages = PDFPage.create_pages(document)
-    for page in pages:
-        interpreter.process_page(page)
-        layout = device.result
-        for el in layout:
-            if isinstance(el, LTFigure):
-                for im in el:
-                    if isinstance(im, LTImage):
-                        # Found one!
-                        st = None
-                        try:
-                            imdata = im.stream.get_data()
-                        except:
-                            # Failed to decode (seems to happen nearly always - there's probably a bug in PDFMiner), oh well...
-                            imdata = im.stream.get_rawdata()
-                        if imdata is not None and imdata.startswith(b'\xff\xd8\xff\xe0'):
-                            return imdata
-
-    return None
+    imdata = convert_from_bytes(fstream.read(), fmt='jpeg', dpi=300, jpegopt={'quality': 100}, first_page=1, last_page=1 )
+    img_byte_arr = io.BytesIO()
+    imdata[0].save(img_byte_arr, format='JPEG')
+    img_byte_arr = img_byte_arr.getvalue()
+    return img_byte_arr
